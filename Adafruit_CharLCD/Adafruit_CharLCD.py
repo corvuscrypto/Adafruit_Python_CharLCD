@@ -86,6 +86,9 @@ DOWN                    = 2
 UP                      = 3
 LEFT                    = 4
 
+# Other default constants
+DEFAULT_LONG_DELAY_US   = 3000
+
 class Adafruit_CharLCD(object):
     """Class to represent and interact with an HD44780 character LCD display."""
 
@@ -94,26 +97,27 @@ class Adafruit_CharLCD(object):
                     enable_pwm=False,
                     gpio=GPIO.get_platform_gpio(),
                     pwm=PWM.get_platform_pwm(),
-                    initial_backlight=1.0):
+                    initial_backlight=1.0,
+                    long_delay_us=DEFAULT_LONG_DELAY_US):
         """Initialize the LCD.  RS, EN, and D4...D7 parameters should be the pins
         connected to the LCD RS, clock enable, and data line 4 through 7 connections.
         The LCD will be used in its 4-bit mode so these 6 lines are the only ones
         required to use the LCD.  You must also pass in the number of columns and
-        lines on the LCD.  
+        lines on the LCD.
 
         If you would like to control the backlight, pass in the pin connected to
         the backlight with the backlight parameter.  The invert_polarity boolean
-        controls if the backlight is one with a LOW signal or HIGH signal.  The 
+        controls if the backlight is one with a LOW signal or HIGH signal.  The
         default invert_polarity value is True, i.e. the backlight is on with a
-        LOW signal.  
+        LOW signal.
 
-        You can enable PWM of the backlight pin to have finer control on the 
-        brightness.  To enable PWM make sure your hardware supports PWM on the 
+        You can enable PWM of the backlight pin to have finer control on the
+        brightness.  To enable PWM make sure your hardware supports PWM on the
         provided backlight pin and set enable_pwm to True (the default is False).
         The appropriate PWM library will be used depending on the platform, but
         you can provide an explicit one with the pwm parameter.
 
-        The initial state of the backlight is ON, but you can set it to an 
+        The initial state of the backlight is ON, but you can set it to an
         explicit initial state with the initial_backlight parameter (0 is off,
         1 is on/full bright).
 
@@ -121,7 +125,14 @@ class Adafruit_CharLCD(object):
         for example if you want to use an MCP230xx GPIO extender.  If you don't
         pass in an GPIO instance, the default GPIO for the running platform will
         be used.
+
+        The long delay for operations that take a while (clear and home) can be
+        modified if the default value is too small (or too large). Delay times
+        are in microseconds and the default is 3000. Adjust this value via the
+        long_delay_us named param.
         """
+        # Set the long delay value
+        self._long_delay_us = long_delay_us
         # Save column and line state.
         self._cols = cols
         self._lines = lines
@@ -164,12 +175,12 @@ class Adafruit_CharLCD(object):
     def home(self):
         """Move the cursor back to its home (first line and first column)."""
         self.write8(LCD_RETURNHOME)  # set cursor position to zero
-        self._delay_microseconds(3000)  # this command takes a long time!
+        self._delay_microseconds(self._long_delay_us)  # this command takes a long time!
 
     def clear(self):
         """Clear the LCD."""
         self.write8(LCD_CLEARDISPLAY)  # command to clear display
-        self._delay_microseconds(3000)  # 3000 microsecond sleep, clearing the display takes a long time
+        self._delay_microseconds(self._long_delay_us)  # clearing the display takes a long time
 
     def set_cursor(self, col, row):
         """Move the cursor to an explicit column and row position."""
@@ -322,14 +333,15 @@ class Adafruit_RGBCharLCD(Adafruit_CharLCD):
     an RGB backlight."""
 
     def __init__(self, rs, en, d4, d5, d6, d7, cols, lines, red, green, blue,
-                 gpio=GPIO.get_platform_gpio(), 
+                 gpio=GPIO.get_platform_gpio(),
                  invert_polarity=True,
                  enable_pwm=False,
                  pwm=PWM.get_platform_pwm(),
-                 initial_color=(1.0, 1.0, 1.0)):
-        """Initialize the LCD with RGB backlight.  RS, EN, and D4...D7 parameters 
-        should be the pins connected to the LCD RS, clock enable, and data line 
-        4 through 7 connections. The LCD will be used in its 4-bit mode so these 
+                 initial_color=(1.0, 1.0, 1.0),
+                 long_delay_us=DEFAULT_LONG_DELAY_US):
+        """Initialize the LCD with RGB backlight.  RS, EN, and D4...D7 parameters
+        should be the pins connected to the LCD RS, clock enable, and data line
+        4 through 7 connections. The LCD will be used in its 4-bit mode so these
         6 lines are the only ones required to use the LCD.  You must also pass in
         the number of columns and lines on the LCD.
 
@@ -350,12 +362,13 @@ class Adafruit_RGBCharLCD(Adafruit_CharLCD):
         """
         super(Adafruit_RGBCharLCD, self).__init__(rs, en, d4, d5, d6, d7,
                                                   cols,
-                                                  lines, 
+                                                  lines,
                                                   enable_pwm=enable_pwm,
                                                   backlight=None,
                                                   invert_polarity=invert_polarity,
-                                                  gpio=gpio, 
-                                                  pwm=pwm)
+                                                  gpio=gpio,
+                                                  pwm=pwm,
+                                                  long_delay_us=long_delay_us)
         self._red = red
         self._green = green
         self._blue = blue
@@ -379,7 +392,7 @@ class Adafruit_RGBCharLCD(Adafruit_CharLCD):
         red = max(0.0, min(1.0, red))
         green = max(0.0, min(1.0, green))
         blue = max(0.0, min(1.0, blue))
-        return (self._pwm_duty_cycle(red), 
+        return (self._pwm_duty_cycle(red),
                 self._pwm_duty_cycle(green),
                 self._pwm_duty_cycle(blue))
 
@@ -422,7 +435,8 @@ class Adafruit_CharLCDPlate(Adafruit_RGBCharLCD):
     """Class to represent and interact with an Adafruit Raspberry Pi character
     LCD plate."""
 
-    def __init__(self, address=0x20, busnum=I2C.get_default_bus(), cols=16, lines=2):
+    def __init__(self, address=0x20, busnum=I2C.get_default_bus(), cols=16, lines=2,
+                 long_delay_us=DEFAULT_LONG_DELAY_US):
         """Initialize the character LCD plate.  Can optionally specify a separate
         I2C address or bus number, but the defaults should suffice for most needs.
         Can also optionally specify the number of columns and lines on the LCD
@@ -440,8 +454,8 @@ class Adafruit_CharLCDPlate(Adafruit_RGBCharLCD):
         # Initialize LCD (with no PWM support).
         super(Adafruit_CharLCDPlate, self).__init__(LCD_PLATE_RS, LCD_PLATE_EN,
             LCD_PLATE_D4, LCD_PLATE_D5, LCD_PLATE_D6, LCD_PLATE_D7, cols, lines,
-            LCD_PLATE_RED, LCD_PLATE_GREEN, LCD_PLATE_BLUE, enable_pwm=False, 
-            gpio=self._mcp)
+            LCD_PLATE_RED, LCD_PLATE_GREEN, LCD_PLATE_BLUE, enable_pwm=False,
+            gpio=self._mcp, long_delay_us=long_delay_us)
 
     def is_pressed(self, button):
         """Return True if the provided button is pressed, False otherwise."""
